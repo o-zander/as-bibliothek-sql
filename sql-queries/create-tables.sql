@@ -1,10 +1,10 @@
   create table T_Address(
     p_address_id int identity(1,1) primary key,
     street varchar(255),
+    house_number varchar(10),
     postal varchar(5),
-    country varchar(255),
     city varchar(255),
-    house_number varchar(10)
+    country varchar(255)
   );
   
   create table T_Library(
