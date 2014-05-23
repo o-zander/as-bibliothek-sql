@@ -20,4 +20,28 @@ CREATE PROCEDURE create_person
         @first_name, @last_name, @day_of_birth 
       );
     END;
-    
+GO
+
+CREATE PROCEDURE create_book
+  @title varchar(255), @field varchar(255)
+  
+  AS
+    INSERT INTO T_Books (title, field) 
+    VALUES (@title, @field);
+GO
+
+CREATE PROCEDURE create_author
+  @first_name varchar(255), @last_name varchar(255)
+  
+  AS 
+    INSERT INTO T_Authors (first_name, last_name)
+    VALUES (@first_name, @last_name);
+GO
+
+CREATE PROCEDURE link_author_book
+  @author int, @book int
+  
+  AS
+    INSERT INTO T_AuthorsBook ()
+    VALUES (); /* FIXME */
+GO
