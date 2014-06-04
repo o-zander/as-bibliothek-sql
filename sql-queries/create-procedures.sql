@@ -30,6 +30,15 @@ CREATE PROCEDURE grant_right
     VALUES (@person, @right);
 GO
 
+CREATE PROCEDURE grant_all_rights
+  @person int
+
+  AS
+    INSERT INTO T_PersonHasRights (p_f_person_id, p_f_right_id)
+    SELECT @person, R.p_right_id
+    FROM T_Rights AS R;
+GO
+
 CREATE PROCEDURE revoke_right
   @person int, @right int
 
