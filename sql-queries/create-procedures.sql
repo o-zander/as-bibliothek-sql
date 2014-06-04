@@ -85,32 +85,30 @@ CREATE PROCEDURE create_exemplars
 
   AS
     BEGIN
-      IF @count > 0
-        BEGIN
-          DECLARE @field varchar(2), @author varchar(1), @signature varchar(255), @timestamp int;
+      DECLARE @field varchar(2), @author varchar(1), @signature varchar(255), @timestamp int;
 
-          SET @field = (
+      SET @field = (
             SELECT UPPER(field)
             FROM T_Books
             WHERE p_book_id = @book
           );
 
-          SET @author = (
-            SELECT TOP 1 UPPER(A.last_name)
-            FROM T_Authors AS A
-              JOIN T_AuthorsBooks AS AB ON A.p_author_id = AB.p_f_author_id
-            WHERE AB.p_f_book_id = @book
-          );
+      SET @author = (
+        SELECT TOP 1 UPPER(A.last_name)
+        FROM T_Authors AS A
+          JOIN T_AuthorsBooks AS AB ON A.p_author_id = AB.p_f_author_id
+        WHERE AB.p_f_book_id = @book
+      );
 
+      WHILE @count > 0
+        BEGIN
           SET @timestamp = DATEDIFF(SECOND, '1970-01-01', CURRENT_TIMESTAMP);
-
           SET @signature = CONCAT(@field, @author, @book, @count, @timestamp, CURRENT_REQUEST_ID());
 
           INSERT INTO T_Exemplars (p_signature, p_f_book_id, exemplar_status)
           VALUES (@signature, @book, @status);
       
-          SET @count = @count - 1;
-          EXECUTE create_exemplars @book, @count, @status;
+          SET @count -= 1;
         END
     END
 GO
