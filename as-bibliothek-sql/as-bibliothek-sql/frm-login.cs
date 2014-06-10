@@ -15,5 +15,13 @@ namespace as_bibliothek_sql
     {
       InitializeComponent();
     }
+
+    private void btnLogin_Click(object sender, EventArgs e)
+    {
+      this.Hide();
+
+      var mainForm = new frmMainAccount();
+      mainForm.Show();
+    }
   }
 }

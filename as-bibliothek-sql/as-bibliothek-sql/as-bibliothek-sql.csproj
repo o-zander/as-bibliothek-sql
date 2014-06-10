@@ -46,7 +46,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="frm-main.cs">
+    <Compile Include="frm-main-account.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="frm-login.cs">
@@ -60,8 +60,8 @@
     <EmbeddedResource Include="frm-login.resx">
       <DependentUpon>frm-login.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="frm-main.resx">
-      <DependentUpon>frm-main.cs</DependentUpon>
+    <EmbeddedResource Include="frm-main-account.resx">
+      <DependentUpon>frm-main-account.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
@@ -85,6 +85,24 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Resources\171930__grass-grass-plants-herbs-green-nature-light-glare-bokeh-close-up_p.jpg" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\glyphicons_003_user.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\glyphicons_071_book.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\glyphicons_043_group.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\glyphicons_020_home.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\glyphicons_224_chevron-left.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\glyphicons_006_user_add.png" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
