@@ -127,10 +127,10 @@ CREATE PROCEDURE lend_book
             ON e.p_signature = b.p_f_signature
             AND b.p_f_book_id = @book
         WHERE e.p_f_book_id = @book
-          AND b.p_f_person_id IS NULL
+          AND b.f_person_id IS NULL
       );
        
-      INSERT INTO T_Borrowed (p_f_person_id, p_f_signature, p_f_book_id, borrow_date)
+      INSERT INTO T_Borrowed (f_person_id, p_f_signature, p_f_book_id, borrow_date)
       VALUES (@user, @exemplar, @book, CURRENT_TIMESTAMP);
     END
 GO
@@ -181,11 +181,11 @@ CREATE PROCEDURE return_book
           SET balance = balance - (
             SELECT l.charge
             FROM T_Libraries AS l
-            WHERE l.library_id = 1
+            WHERE l.p_library_id = 1
           )
           FROM T_Accounts AS a
             JOIN T_Persons AS p
-              ON a.account_id = p.p_person_id
+              ON a.p_account_id = p.p_person_id
           WHERE p.p_person_id = @user;
         END
       
@@ -199,17 +199,29 @@ CREATE PROCEDURE return_book
       
       IF @balance < '0.00'
         BEGIN
+          RAISERROR('Das Konto der Person ist nicht ausgeglichen. Rückgabe nicht möglich.', 16, 1)
           ROLLBACK TRANSACTION
-          /* TODO: rais error */
+          RETURN
         END
         
-      /* TODO: remove book from list */
-      
+      DELETE FROM T_Borrowed
+      WHERE p_f_book_id = @book
+        AND p_f_signature = @exemplar;
     END
 GO
-      
 
-CREATE PROCEDURE change_loan_period
+CREATE PROCEDURE change_library_name
+  @name varchar(255), @library int = 1
+
+  AS
+    BEGIN
+      UPDATE T_Libraries
+      SET name = @name
+      WHERE p_library_id = @library;
+    END
+GO
+
+CREATE PROCEDURE change_library_loan_period
   @loan_period int, @library int = 1
   
   AS
@@ -217,5 +229,53 @@ CREATE PROCEDURE change_loan_period
       UPDATE T_Libraries
       SET loan_period = @loan_period
       WHERE p_library_id = @library;
+    END
+GO
+
+CREATE PROCEDURE change_library_charge
+  @charge decimal(8,2), @library int = 1
+  
+  AS
+    BEGIN
+      UPDATE T_Libraries
+      SET charge = @charge
+      WHERE p_library_id = @library;
+    END
+GO
+
+CREATE PROCEDURE add_library_opening_hour
+  @week_day varchar(255), @opening time(7), @closing time(7), @library int = 1
+
+  AS
+    BEGIN
+      IF @opening >= @closing
+        BEGIN
+          RAISERROR('Die Startzeit ist größer oder gleich der Endzeit!', 16, 1)
+          RETURN
+        END
+
+      IF EXISTS (
+        SELECT 1
+        FROM T_OpeningHours
+        WHERE f_library_id = @library
+          AND ((@opening <= opening AND @opening >= closing) OR (@closing >= opening AND @closing <= closing))
+      )
+        BEGIN
+          RAISERROR('Es existiert eine überlappende Öffnungszeit.', 16, 1)
+          RETURN
+        END 
+        
+      INSERT INTO T_OpeningHours (f_library_id, week_day, opening, closing)
+      VALUES (@library, @week_day, @opening, @closing);
+    END
+GO
+
+CREATE PROCEDURE remove_library_opening_hour
+  @opening_hour int
+
+  AS
+    BEGIN
+      DELETE FROM T_OpeningHours
+      WHERE p_opening_id = @opening_hour;
     END
 GO
