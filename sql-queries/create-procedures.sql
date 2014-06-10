@@ -146,7 +146,7 @@ CREATE PROCEDURE reserve_book
 GO
 
 CREATE PROCEDURE return_book
-  @book int, @exemplar varchar(255)
+  @book int, @exemplar varchar(255), @library int = 1
   
   AS
     BEGIN
@@ -158,7 +158,7 @@ CREATE PROCEDURE return_book
       SET @loan_period = (
         SELECT loan_period
         FROM T_Libraries
-        WHERE p_library_id = 1
+        WHERE p_library_id = @library
       );
       
       SET @user = (
@@ -181,7 +181,7 @@ CREATE PROCEDURE return_book
           SET balance = balance - (
             SELECT l.charge
             FROM T_Libraries AS l
-            WHERE l.p_library_id = 1
+            WHERE l.p_library_id = @library
           )
           FROM T_Accounts AS a
             JOIN T_Persons AS p
