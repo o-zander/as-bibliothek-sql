@@ -140,7 +140,7 @@
         references T_Exemplars(p_signature, p_f_book_id),
     
     constraint PersonBorrowedFk
-      foreign key (p_f_person_id)
+      foreign key (f_person_id)
         references T_Persons(p_person_id)
   );
  
