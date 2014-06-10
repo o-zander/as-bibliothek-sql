@@ -5,7 +5,7 @@ CREATE PROCEDURE create_person
   @street varchar(255), @house_number varchar(10), @postal varchar(5), @city varchar(255), @country varchar(255) 
   AS
     BEGIN
-      INSERT INTO T_Address (street, house_number, postal, city, country)
+      INSERT INTO T_Addresses (street, house_number, postal, city, country)
       VALUES (@street, @house_number, @postal, @city, @country);
     
       INSERT INTO T_IdentityCards (issue_date, card_status)
@@ -16,7 +16,7 @@ CREATE PROCEDURE create_person
     
       INSERT INTO T_Persons (f_address_id, f_identity_number, f_account_id, first_name, last_name, day_of_birth, username)
       VALUES (
-        IDENT_CURRENT('T_Address'), IDENT_CURRENT('T_IdentityCards'), IDENT_CURRENT('T_Accounts'),
+        IDENT_CURRENT('T_Addresses'), IDENT_CURRENT('T_IdentityCards'), IDENT_CURRENT('T_Accounts'),
         @first_name, @last_name, @day_of_birth, IDENT_CURRENT('T_IdentityCards') 
       );
     END
@@ -103,12 +103,119 @@ CREATE PROCEDURE create_exemplars
       WHILE @count > 0
         BEGIN
           SET @timestamp = DATEDIFF(SECOND, '1970-01-01', CURRENT_TIMESTAMP);
-          SET @signature = CONCAT(@field, @author, @book, @count, @timestamp, CURRENT_REQUEST_ID());
+          SET @signature = @field + @author + CAST(@book as varchar) + CAST(@count as varchar) + CAST(@timestamp as varchar) + CAST(CURRENT_REQUEST_ID() as varchar); /* compatibility fix for MSQL 05, on +08 use CONCAT */
 
           INSERT INTO T_Exemplars (p_signature, p_f_book_id, exemplar_status)
           VALUES (@signature, @book, @status);
       
           SET @count -= 1;
         END
+    END
+GO
+
+CREATE PROCEDURE lend_book
+  @user int, @book int
+  
+  AS
+    BEGIN
+      DECLARE @exemplar varchar(255);
+      
+      SET @exemplar = (
+        SELECT TOP 1 e.p_signature
+        FROM T_Exemplars AS e
+          LEFT JOIN T_Borrowed AS b
+            ON e.p_signature = b.p_f_signature
+            AND b.p_f_book_id = @book
+        WHERE e.p_f_book_id = @book
+          AND b.p_f_person_id IS NULL
+      );
+       
+      INSERT INTO T_Borrowed (p_f_person_id, p_f_signature, p_f_book_id, borrow_date)
+      VALUES (@user, @exemplar, @book, CURRENT_TIMESTAMP);
+    END
+GO
+
+CREATE PROCEDURE reserve_book
+  @user int, @book int
+  
+  AS
+    BEGIN
+      INSERT INTO T_Reservations (p_f_person_id, p_f_book_id, reservation_date)
+      VALUES (@user, @book, CURRENT_TIMESTAMP);
+    END
+GO
+
+CREATE PROCEDURE return_book
+  @book int, @exemplar varchar(255)
+  
+  AS
+    BEGIN
+      DECLARE @loan_period int,
+              @user int,
+              @borrow_date date,
+              @balance decimal(8,2);
+              
+      SET @loan_period = (
+        SELECT loan_period
+        FROM T_Libraries
+        WHERE p_library_id = 1
+      );
+      
+      SET @user = (
+        SELECT f_person_id
+        FROM T_Borrowed
+        WHERE p_f_signature = @exemplar
+          AND p_f_book_id = @book 
+      );
+      
+      SET @borrow_date = (
+        SELECT borrow_date
+        FROM T_Borrowed
+        WHERE p_f_signature = @exemplar
+          AND p_f_book_id = @book
+      );
+      
+      IF DATEDIFF(DAY, @borrow_date, CURRENT_TIMESTAMP) > @loan_period
+        BEGIN
+          UPDATE T_Accounts
+          SET balance = balance - (
+            SELECT l.charge
+            FROM T_Libraries AS l
+            WHERE l.library_id = 1
+          )
+          FROM T_Accounts AS a
+            JOIN T_Persons AS p
+              ON a.account_id = p.p_person_id
+          WHERE p.p_person_id = @user;
+        END
+      
+      SET @balance = (
+        SELECT a.balance
+        FROM T_Accounts AS a
+          JOIN T_Persons AS p
+            ON a.p_account_id = p.f_account_id
+        WHERE p.p_person_id = @user
+      );
+      
+      IF @balance < '0.00'
+        BEGIN
+          ROLLBACK TRANSACTION
+          /* TODO: rais error */
+        END
+        
+      /* TODO: remove book from list */
+      
+    END
+GO
+      
+
+CREATE PROCEDURE change_loan_period
+  @loan_period int, @library int = 1
+  
+  AS
+    BEGIN
+      UPDATE T_Libraries
+      SET loan_period = @loan_period
+      WHERE p_library_id = @library;
     END
 GO

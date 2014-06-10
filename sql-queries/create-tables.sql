@@ -1,4 +1,4 @@
-  create table T_Address(
+  create table T_Addresses(
     p_address_id int identity(1,1) primary key,
     street varchar(255),
     house_number varchar(10),
@@ -7,17 +7,17 @@
     country varchar(255)
   );
   
-  create table T_Library(
+  create table T_Libraries(
     p_library_id int identity(1,1) primary key,
     f_address_id int not null,
     name varchar(255),
-    loan_period date,
+    loan_period int,
     charge decimal(8,2),
     yearly_fee decimal(8,2)
     
     constraint LibraryAdressFk
       foreign key(f_address_id)
-        references T_Address(p_address_id)
+        references T_Addresses(p_address_id)
   );
   
   create table T_OpeningHours(
@@ -29,7 +29,7 @@
     
     constraint LibraryOpeningHoursFk
       foreign key(f_library_id)
-        references T_Library(p_library_id)
+        references T_Libraries(p_library_id)
   );
   
   create table T_IdentityCards(
@@ -57,7 +57,7 @@
     
     constraint PersonsAddressFk 
       foreign key(f_address_id)
-        references T_Address(p_address_id),
+        references T_Addresses(p_address_id),
     
     constraint PersonsIdentityFk
       foreign key(f_identity_number)
@@ -128,12 +128,12 @@
   );
   
   create table T_Borrowed(
-    p_f_person_id int,
     p_f_signature varchar(255),
     p_f_book_id int,
+    f_person_id int,
     borrow_date date,
     
-    primary key (p_f_person_id, p_f_signature),
+    primary key (p_f_signature, p_f_book_id),
     
     constraint ExemplarBorrowedFk
       foreign key (p_f_signature, p_f_book_id)
