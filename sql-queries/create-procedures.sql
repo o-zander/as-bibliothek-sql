@@ -85,20 +85,16 @@ CREATE PROCEDURE create_exemplars
 
   AS
     BEGIN
-      DECLARE @field varchar(2), @author varchar(1), @signature varchar(255), @timestamp int;
+      DECLARE @field varchar(2) = '', @author varchar(1) = '', @signature varchar(255), @timestamp int;
 
-      SET @field = (
-            SELECT UPPER(field)
-            FROM T_Books
-            WHERE p_book_id = @book
-          );
+      SELECT @field = UPPER(field)
+      FROM T_Books
+      WHERE p_book_id = @book
 
-      SET @author = (
-        SELECT TOP 1 UPPER(A.last_name)
-        FROM T_Authors AS A
-          JOIN T_AuthorsBooks AS AB ON A.p_author_id = AB.p_f_author_id
-        WHERE AB.p_f_book_id = @book
-      );
+      SELECT TOP 1 @author = UPPER(A.last_name)
+      FROM T_Authors AS A
+        JOIN T_AuthorsBooks AS AB ON A.p_author_id = AB.p_f_author_id
+      WHERE AB.p_f_book_id = @book
 
       WHILE @count > 0
         BEGIN
@@ -129,9 +125,16 @@ CREATE PROCEDURE lend_book
         WHERE e.p_f_book_id = @book
           AND b.f_person_id IS NULL
       );
-       
-      INSERT INTO T_Borrowed (f_person_id, p_f_signature, p_f_book_id, borrow_date)
-      VALUES (@user, @exemplar, @book, CURRENT_TIMESTAMP);
+
+      IF @exemplar IS NULL
+        BEGIN
+          RAISERROR('Kein freies Exemplar vorhanden.', 16, 1)
+        END
+      ELSE
+        BEGIN
+          INSERT INTO T_Borrowed (f_person_id, p_f_signature, p_f_book_id, borrow_date)
+          VALUES (@user, @exemplar, @book, CURRENT_TIMESTAMP);
+        END
     END
 GO
 
@@ -140,8 +143,40 @@ CREATE PROCEDURE reserve_book
   
   AS
     BEGIN
-      INSERT INTO T_Reservations (p_f_person_id, p_f_book_id, reservation_date)
-      VALUES (@user, @book, CURRENT_TIMESTAMP);
+      IF (
+        SELECT COUNT(*)
+        FROM T_Exemplars AS e
+          LEFT JOIN T_Borrowed AS b
+            ON (e.p_f_book_id = b.p_f_book_id AND e.p_signature = b.p_f_signature)
+        WHERE e.p_f_book_id = @book
+          AND b.f_person_id IS NULL
+      ) > 0
+        BEGIN
+          RAISERROR('Es sind freie Exemplare vorhanden.', 16, 1)
+        END
+      ELSE
+        BEGIN
+          INSERT INTO T_Reservations (p_f_person_id, p_f_book_id, reservation_date)
+          VALUES (@user, @book, CURRENT_TIMESTAMP);
+        END
+    END
+GO
+
+CREATE PROCEDURE renew_book
+  @book int, @exemplar varchar(255)
+
+  AS
+    BEGIN
+      UPDATE T_Borrowed
+      SET renewed = renewed + 1
+      WHERE p_f_signature = @exemplar
+        AND p_f_book_id = @book
+        AND renewed < 2;
+      
+      IF @@ROWCOUNT = 0
+        BEGIN
+          RAISERROR('Das Buch wurde bereits zwei mal ausgeliehen.', 16, 1) 
+        END
     END
 GO
 
@@ -152,7 +187,7 @@ CREATE PROCEDURE return_book
     BEGIN
       DECLARE @loan_period int,
               @user int,
-              @borrow_date date,
+              @diff int,
               @balance decimal(8,2);
               
       SET @loan_period = (
@@ -160,26 +195,17 @@ CREATE PROCEDURE return_book
         FROM T_Libraries
         WHERE p_library_id = 1
       );
-      
-      SET @user = (
-        SELECT f_person_id
-        FROM T_Borrowed
-        WHERE p_f_signature = @exemplar
-          AND p_f_book_id = @book 
-      );
-      
-      SET @borrow_date = (
-        SELECT borrow_date
-        FROM T_Borrowed
-        WHERE p_f_signature = @exemplar
-          AND p_f_book_id = @book
-      );
-      
-      IF DATEDIFF(DAY, @borrow_date, CURRENT_TIMESTAMP) > @loan_period
+
+      SELECT @user = f_person_id, @diff = DATEDIFF(DAY, borrow_date, CURRENT_TIMESTAMP) - @loan_period * (renewed + 1)
+      FROM T_Borrowed
+      WHERE p_f_signature = @exemplar
+        AND p_f_book_id = @book;
+
+      IF @diff > 0
         BEGIN
           UPDATE T_Accounts
           SET balance = balance - (
-            SELECT l.charge
+            SELECT l.charge * @diff
             FROM T_Libraries AS l
             WHERE l.p_library_id = 1
           )
@@ -240,6 +266,31 @@ CREATE PROCEDURE change_library_charge
       UPDATE T_Libraries
       SET charge = @charge
       WHERE p_library_id = @library;
+    END
+GO
+
+CREATE PROCEDURE change_library_yearly_fee
+  @yearly_fee decimal(8,2), @library int = 1
+  
+  AS
+    BEGIN
+      UPDATE T_Libraries
+      SET yearly_fee = @yearly_fee
+      WHERE p_library_id = @library;
+    END
+GO
+
+CREATE PROCEDURE charge_yearly_fee
+  @user int, @library int = 1
+
+  AS
+    BEGIN
+      UPDATE T_Accounts
+      SET balance = balance - (SELECT yearly_fee FROM T_Libraries WHERE p_library_id = @library)
+      FROM T_Accounts AS a
+        JOIN T_Persons AS p
+          ON a.p_account_id = p.f_account_id
+      WHERE p.p_person_id = @user;
     END
 GO
 
