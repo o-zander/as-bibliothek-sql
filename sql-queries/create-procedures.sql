@@ -13,11 +13,13 @@ CREATE PROCEDURE create_person
     
       INSERT INTO T_Accounts (balance)
       VALUES ('0.0');
+      
+      DECLARE @username varchar(7) = RIGHT('0000000' + CAST(IDENT_CURRENT('T_IdentityCards') AS varchar), 7);
     
-      INSERT INTO T_Persons (f_address_id, f_identity_number, f_account_id, first_name, last_name, day_of_birth, username)
+      INSERT INTO T_Persons (f_address_id, f_identity_number, f_account_id, first_name, last_name, day_of_birth, username, pass_word)
       VALUES (
         IDENT_CURRENT('T_Addresses'), IDENT_CURRENT('T_IdentityCards'), IDENT_CURRENT('T_Accounts'),
-        @first_name, @last_name, @day_of_birth, IDENT_CURRENT('T_IdentityCards') 
+        @first_name, @last_name, @day_of_birth, @username, @day_of_birth /* Geburtsdatum als initiales Passwort */  
       );
     END
 GO
@@ -187,7 +189,7 @@ CREATE PROCEDURE return_book
     BEGIN
       DECLARE @loan_period int,
               @user int,
-              @diff int,
+              @diff int, /* Überschreitung der Ausleihfrist in Tagen */
               @balance decimal(8,2);
               
       SET @loan_period = (
@@ -205,7 +207,7 @@ CREATE PROCEDURE return_book
         BEGIN
           UPDATE T_Accounts
           SET balance = balance - (
-            SELECT l.charge * @diff
+            SELECT l.charge * (@diff / 7 + 1) /* pro Woche */
             FROM T_Libraries AS l
             WHERE l.p_library_id = @library
           )
