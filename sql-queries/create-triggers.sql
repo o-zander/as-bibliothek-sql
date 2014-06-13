@@ -7,24 +7,34 @@ AS
         WHERE A.p_account_id = D.f_account_id
           AND A.balance < '0.00')
       BEGIN
-        RAISERROR('Das Konto der Person ist nicht ausgeglichen. Löschen nicht möglich.', 16, 1);
-        ROLLBACK TRANSACTION;
-        RETURN;
+        RAISERROR('Das Konto der Person ist nicht ausgeglichen. Löschen nicht möglich.', 16, 1)
+        ROLLBACK TRANSACTION
+        RETURN
       END
-    ELSE
+      
+    IF EXISTS (
+      SELECT 1
+      FROM T_Borrowed AS b
+        RIGHT JOIN deleted AS d
+          ON d.p_person_id = b.f_person_id
+    )
       BEGIN
-        DELETE FROM T_Persons
-        FROM T_Persons AS P, deleted as D
-        WHERE P.p_person_id = D.p_person_id;
-
-        DELETE FROM T_Addresses
-        FROM T_Addresses AS A, deleted as D
-        WHERE A.p_address_id = D.f_address_id;
-
-        DELETE FROM T_Accounts
-        FROM T_Accounts AS A, deleted as D
-        WHERE A.p_account_id = D.f_account_id;
+        RAISERROR('Der Benutzer hat noch Bücher ausgeliehen.', 16, 1)
+        ROLLBACK TRANSACTION
+        RETURN
       END
+    
+    DELETE FROM T_Persons
+    FROM T_Persons AS P, deleted as D
+    WHERE P.p_person_id = D.p_person_id;
+
+    DELETE FROM T_Addresses
+    FROM T_Addresses AS A, deleted as D
+    WHERE A.p_address_id = D.f_address_id;
+
+    DELETE FROM T_Accounts
+    FROM T_Accounts AS A, deleted as D
+    WHERE A.p_account_id = D.f_account_id;
   END
 GO
 
