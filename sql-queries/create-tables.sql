@@ -132,6 +132,7 @@
     p_f_book_id int,
     f_person_id int,
     borrow_date date,
+    renewed int,
     
     primary key (p_f_signature, p_f_book_id),
     
