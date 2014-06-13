@@ -228,8 +228,12 @@ CREATE PROCEDURE lend_book
         END
       ELSE
         BEGIN
-          INSERT INTO T_Borrowed (f_person_id, p_f_signature, p_f_book_id, borrow_date)
-          VALUES (@user, @exemplar, @book, CURRENT_TIMESTAMP);
+          INSERT INTO T_Borrowed (f_person_id, p_f_signature, p_f_book_id, borrow_date, renewed)
+          VALUES (@user, @exemplar, @book, CURRENT_TIMESTAMP, 0);
+          
+          DELETE FROM T_Reservations
+          WHERE p_f_person_id = @user
+            AND p_f_book_id = @book;
         END
     END
 GO
