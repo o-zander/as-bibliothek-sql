@@ -24,6 +24,79 @@ CREATE PROCEDURE create_person
     END
 GO
 
+CREATE PROCEDURE change_address
+  @user int, @street varchar(255), @house_number varchar(10), @postal varchar(5), @city varchar(255), @country varchar(255)
+  
+  AS
+    BEGIN
+      UPDATE T_Addresses
+      SET street = @street, house_number = @house_number, postal = @postal, city = @city, country = @country
+      FROM T_Addresses AS a
+        JOIN T_Persons AS p
+          ON a.p_address_id = p.f_address_id
+      WHERE p.p_person_id = @user;
+    END
+GO
+
+CREATE PROCEDURE remove_user
+  @user int
+  
+  AS
+    BEGIN
+      /* Überprüfung und Löschen von Referenzen durch Trigger */
+      DELETE FROM T_Persons
+      WHERE p_person_id = @user;
+    END
+GO
+
+CREATE PROCEDURE renew_identity_card
+  @user int
+  
+  AS
+    BEGIN
+      IF (
+        SELECT balance
+        FROM T_Accounts AS a
+          JOIN T_Persons AS p
+            ON a.p_account_id = p.f_account_id
+        WHERE p.p_person_id = @user
+      ) < '0.00'
+        BEGIN
+          RAISERROR('Das Konto des Benutzers ist nicht ausgeglichen.', 16, 1)
+        END
+      ELSE
+        BEGIN
+          UPDATE T_IdentityCards
+          SET issue_date = CURRENT_TIMESTAMP, card_status = 'Verlängert'
+          FROM T_IdentityCards AS c
+            JOIN T_Persons AS p
+              ON c.p_identity_number = p.f_identity_number
+          WHERE p.p_person_id = @user;
+        END
+    END
+GO
+
+CREATE PROCEDURE account_deposit
+  @user int, @amount decimal(8,2)
+  
+  AS
+    BEGIN
+      IF @amount > '0.00'
+        BEGIN
+          UPDATE T_Accounts
+          SET balance = balance + @amount
+          FROM T_Accounts AS a
+            JOIN T_Persons AS p
+              ON a.p_account_id = p.p_person_id
+          WHERE p.p_person_id = @user;
+        END
+      ELSE
+        BEGIN
+          RAISERROR('Es können keine negativen Beträge eingezahlt werden.', 16, 1)
+        END
+    END
+GO
+      
 CREATE PROCEDURE grant_right
   @person int, @right int
 
@@ -116,9 +189,30 @@ CREATE PROCEDURE lend_book
   
   AS
     BEGIN
-      DECLARE @exemplar varchar(255);
+      IF EXISTS(
+        SELECT 1
+        FROM T_Reservations 
+        WHERE p_f_book_id = @book
+          AND p_f_person_id != @user
+      )
+        BEGIN
+          RAISERROR('Das Buch ist von einem anderen Benutzer vorbestellt.', 16, 1)
+          RETURN
+        END
       
-      SET @exemplar = (
+      IF (
+        SELECT balance
+        FROM T_Accounts AS a
+          JOIN T_Persons AS p
+            ON a.p_account_id = p.f_account_id
+        WHERE p.p_person_id = @user
+      ) < '0.00'
+        BEGIN
+          RAISERROR('Das Konto des Benutzers ist nicht ausgeglichen.', 16, 1)
+          RETURN
+        END
+        
+      DECLARE @exemplar varchar(255) = (
         SELECT TOP 1 e.p_signature
         FROM T_Exemplars AS e
           LEFT JOIN T_Borrowed AS b
@@ -177,7 +271,7 @@ CREATE PROCEDURE renew_book
       
       IF @@ROWCOUNT = 0
         BEGIN
-          RAISERROR('Das Buch wurde bereits zwei mal ausgeliehen.', 16, 1) 
+          RAISERROR('Die Ausleihe wurde bereits zwei mal verlängert.', 16, 1) 
         END
     END
 GO
@@ -238,6 +332,83 @@ CREATE PROCEDURE return_book
     END
 GO
 
+CREATE PROCEDURE remove_book
+  @book int
+  
+  AS
+    BEGIN
+      IF EXISTS (
+        SELECT 1
+        FROM T_Borrowed
+        WHERE p_f_book_id = @book
+      )
+        BEGIN
+          RAISERROR('Das Buch ist noch ausgeliehen.', 16, 1)
+        END
+      ELSE
+        BEGIN
+          DELETE FROM T_Exemplars
+          WHERE p_f_book_id = @book;
+          
+          DELETE FROM T_Books
+          WHERE p_book_id = @book;
+        END
+    END
+GO
+
+CREATE PROCEDURE remove_exemplar
+  @book int, @exemplar varchar(255)
+  
+  AS
+    BEGIN
+      IF EXISTS (
+        SELECT 1
+        FROM T_Borrowed
+        WHERE p_f_book_id = @book
+          AND p_f_signature = @exemplar
+      )
+        BEGIN
+          RAISERROR('Das Exemplar ist noch verliehen.', 16, 1)
+        END
+      ELSE
+        BEGIN
+          DELETE FROM T_Exemplars
+          WHERE p_f_book_id = @book
+            AND p_signature = @exemplar;
+        END
+    END
+GO
+
+CREATE PROCEDURE change_exemplar_status
+   @book int, @exemplar varchar(255), @status varchar(255)
+   
+   AS
+    BEGIN
+      UPDATE T_Exemplars
+      SET exemplar_status = @status
+      WHERE p_f_book_id = @book
+        AND p_signature = @exemplar;
+    END
+GO
+
+CREATE PROCEDURE search_book
+  @query text
+  
+  AS
+    BEGIN
+      SELECT DISTINCT b.p_book_id
+      FROM T_Books AS b
+        LEFT JOIN T_AuthorsBooks AS ab
+          ON b.p_book_id = ab.p_f_book_id
+        JOIN T_Authors AS a
+          ON ab.p_f_author_id = a.p_author_id
+      WHERE a.first_name LIKE @query
+         OR a.last_name LIKE @query
+         OR b.field LIKE @query
+         OR b.title LIKE @query;
+    END
+GO 
+  
 CREATE PROCEDURE change_library_name
   @name varchar(255), @library int = 1
 
@@ -303,7 +474,7 @@ CREATE PROCEDURE add_library_opening_hour
     BEGIN
       IF @opening >= @closing
         BEGIN
-          RAISERROR('Die Startzeit ist größer oder gleich der Endzeit!', 16, 1)
+          RAISERROR('Die Startzeit ist größer oder gleich der Endzeit.', 16, 1)
           RETURN
         END
 
